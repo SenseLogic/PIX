@@ -17,13 +17,33 @@ dmd -m64 sprout.d color.d png.d
 ## Command line
 
 ```bash
-sprout image.png sprites.c
+sprout [options] sprite.png [sprite.c]
+```
+
+### Options
+
+```bash
+--pixel-minimum-lightness pixel_minimum_lightness
+--sprite-column-count sprite_column_count
+--sprite-row-count sprite_row_count
 ```
 
 ### Examples
 
 ```bash
-sprout image.png sprites.c
+sprout sprite.png
+```
+
+```bash
+sprout sprite.png sprite.c
+```
+
+```bash
+sprout --pixel-minimum-lightness 128 sprite.png
+```
+
+```bash
+sprout --pixel-minimum-lightness 128 --sprite-column-count 24 --sprite-row-count 21 sprite.png sprite.c
 ```
 
 ## Dependencies
@@ -36,7 +56,7 @@ Only supports PNG files.
 
 ## Version
 
-0.1
+1.0
 
 ## Author
 

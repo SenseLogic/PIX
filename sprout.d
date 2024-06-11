@@ -26,7 +26,7 @@ import core.stdc.stdlib : exit;
 import std.conv : to;
 import std.file : write;
 import std.stdio : writeln;
-import std.string : endsWith, replace;
+import std.string : endsWith, replace, split, startsWith;
 
 // -- TYPES
 
@@ -36,11 +36,30 @@ struct PIXEL
 {
     // -- ATTRIBUTES
 
-    long
+    ubyte
         Red,
         Green,
         Blue,
         Opacity;
+
+    // -- OPERATIONS
+
+    void Clear(
+        )
+    {
+        Red = 0;
+        Green = 0;
+        Blue = 0;
+        Opacity = 0;
+    }
+
+    // ~~
+
+    ubyte GetLightness(
+        )
+    {
+        return ( ( ( ( 306L * Red + 601L * Green + 117L * Blue ) >> 10 ) * Opacity ) / 255 ).to!ubyte();
+    }
 }
 
 // ~~
@@ -53,7 +72,7 @@ struct IMAGE
         ByteArray;
     long
         ColumnCount,
-        LineCount;
+        RowCount;
     PIXEL[]
         PixelArray;
 
@@ -61,25 +80,15 @@ struct IMAGE
 
     long GetPixelIndex(
         long column_index,
-        long line_index
-        )
-    {
-        return line_index * ColumnCount + column_index;
-    }
-
-    // ~~
-
-    long GetCheckedPixelIndex(
-        long column_index,
-        long line_index
+        long row_index
         )
     {
         if ( column_index >= 0
              && column_index < ColumnCount
-             && line_index >= 0
-             && line_index < LineCount )
+             && row_index >= 0
+             && row_index < RowCount )
         {
-            return line_index * ColumnCount + column_index;
+            return row_index * ColumnCount + column_index;
         }
         else
         {
@@ -95,7 +104,7 @@ struct IMAGE
     {
         long
             column_index,
-            line_index,
+            row_index,
             pixel_index;
         Color
             color;
@@ -108,26 +117,26 @@ struct IMAGE
 
         true_color_image = readPng( png_file_path ).getAsTrueColorImage();
 
-        LineCount = true_color_image.height();
+        RowCount = true_color_image.height();
         ColumnCount = true_color_image.width();
-        PixelArray.length = LineCount * ColumnCount;
+        PixelArray.length = RowCount * ColumnCount;
 
-        for ( line_index = 0;
-              line_index < LineCount;
-              ++line_index )
+        for ( row_index = 0;
+              row_index < RowCount;
+              ++row_index )
         {
             for ( column_index = 0;
                   column_index < ColumnCount;
                   ++column_index )
             {
-                color = true_color_image.getPixel( cast( int )column_index, cast( int )line_index );
+                color = true_color_image.getPixel( cast( int )column_index, cast( int )row_index );
 
                 pixel.Red = color.r;
                 pixel.Green = color.g;
                 pixel.Blue = color.b;
                 pixel.Opacity = color.a;
 
-                pixel_index = GetPixelIndex( column_index, line_index );
+                pixel_index = GetPixelIndex( column_index, row_index );
                 PixelArray[ pixel_index ] = pixel;
             }
         }
@@ -142,46 +151,55 @@ struct IMAGE
         long
             column_index,
             first_column_index,
-            first_line_index,
-            line_index,
+            first_row_index,
+            row_index,
             pixel_index,
             post_column_index,
-            post_line_index;
+            post_row_index;
         string
-            c_file_text;
+            c_file_text,
+            sprite_name;
         PIXEL
             pixel;
 
+        sprite_name = c_file_path.GetLogicalPath().split( '/' )[ $ - 1 ][ 0 .. $ - 2 ];
+
         writeln( "Writing C file : ", c_file_path );
 
-        c_file_text = "";
+        c_file_text ~= "uint8_t\n";
 
-        for ( first_line_index = 0;
-              first_line_index < LineCount;
-              first_line_index += 21 )
+        for ( first_row_index = 0;
+              first_row_index < RowCount;
+              first_row_index += SpriteRowCount )
         {
-            post_line_index = first_line_index + 21;
-
-            if ( post_line_index > LineCount )
-            {
-                post_line_index = LineCount;
-            }
+            post_row_index = first_row_index + SpriteRowCount;
 
             for ( first_column_index = 0;
                   first_column_index < ColumnCount;
-                  first_column_index += 24 )
+                  first_column_index += SpriteColumnCount )
             {
-                post_column_index = first_column_index + 24;
+                post_column_index = first_column_index + SpriteColumnCount;
 
-                if ( post_column_index > ColumnCount )
+                c_file_text ~= "    " ~ sprite_name;
+
+                if ( ColumnCount > SpriteColumnCount
+                     || RowCount > SpriteRowCount )
                 {
-                    post_column_index = ColumnCount;
+                    c_file_text
+                       ~= "_"
+                          ~ ( first_row_index / SpriteRowCount ).to!string()
+                          ~ "_"
+                          ~ ( first_column_index / SpriteColumnCount ).to!string();
                 }
 
-                for ( line_index = first_line_index;
-                      line_index < post_line_index;
-                      ++line_index )
+                c_file_text ~= "[] =\n        {\n";
+
+                for ( row_index = first_row_index;
+                      row_index < post_row_index;
+                      ++row_index )
                 {
+                    c_file_text ~= "            ";
+
                     for ( column_index = first_column_index;
                           column_index < post_column_index;
                           ++column_index )
@@ -198,10 +216,18 @@ struct IMAGE
                             }
                         }
 
-                        pixel_index = GetPixelIndex( column_index, line_index );
-                        pixel = PixelArray[ pixel_index ];
+                        pixel_index = GetPixelIndex( column_index, row_index );
 
-                        if ( pixel.Red + pixel.Green + pixel.Blue < 128 * 3 )
+                        if ( pixel_index >= 0 )
+                        {
+                            pixel = PixelArray[ pixel_index ];
+                        }
+                        else
+                        {
+                            pixel.Clear();
+                        }
+
+                        if ( pixel.GetLightness() < PixelMinimumLightness )
                         {
                             c_file_text ~= "0";
                         }
@@ -211,7 +237,7 @@ struct IMAGE
                         }
                     }
 
-                    if ( line_index < post_line_index - 1 )
+                    if ( row_index < post_row_index - 1 )
                     {
                         c_file_text ~= ",\n";
                     }
@@ -221,13 +247,20 @@ struct IMAGE
                     }
                 }
 
-                c_file_text ~= "\n";
+                c_file_text ~= "        },\n";
             }
         }
 
-        c_file_path.WriteText( c_file_text );
+        c_file_path.WriteText( c_file_text[ 0 .. $ - 2 ] ~ ";\n" );
     }
 }
+
+// -- VARIABLES
+
+long
+    PixelMinimumLightness,
+    SpriteColumnCount,
+    SpriteRowCount;
 
 // -- FUNCTIONS
 
@@ -319,18 +352,69 @@ void main(
     string[] argument_array
     )
 {
+    string
+        option;
+
     argument_array = argument_array[ 1 .. $ ];
 
-    if ( argument_array.length == 2
-         && argument_array[ 0 ].endsWith( ".png" )
-         && argument_array[ 1 ].endsWith( ".c" ) )
+    PixelMinimumLightness = 128;
+    SpriteColumnCount = 24;
+    SpriteRowCount = 21;
+
+    while ( argument_array.length >= 1
+            && argument_array[ 0 ].startsWith( "--" ) )
+    {
+        option = argument_array[ 0 ];
+
+        argument_array = argument_array[ 1 .. $ ];
+
+        if ( option == "--pixel-minimum-lightness"
+             && argument_array.length >= 1 )
+        {
+            PixelMinimumLightness = argument_array[ 0 ].to!long();
+
+            argument_array = argument_array[ 1 .. $ ];
+        }
+        else if ( option == "--sprite-column-count"
+                  && argument_array.length >= 1 )
+        {
+            SpriteColumnCount = argument_array[ 0 ].to!long();
+
+            argument_array = argument_array[ 1 .. $ ];
+        }
+        else if ( option == "--sprite-row-count"
+                  && argument_array.length >= 1 )
+        {
+            SpriteRowCount = argument_array[ 0 ].to!long();
+
+            argument_array = argument_array[ 1 .. $ ];
+        }
+        else
+        {
+            Abort( "Invalid option : " ~ option );
+        }
+    }
+
+    if ( argument_array.length == 1
+         && argument_array[ 0 ].endsWith( ".png" ) )
+    {
+        ConvertImage( argument_array[ 0 ], argument_array[ 0 ][ 0 .. $ - 4 ] ~ ".c" );
+    }
+    else if ( argument_array.length == 2
+              && argument_array[ 0 ].endsWith( ".png" )
+              && argument_array[ 1 ].endsWith( ".c" ) )
     {
         ConvertImage( argument_array[ 0 ], argument_array[ 1 ] );
     }
     else
     {
         writeln( "Usage :" );
-        writeln( "    sprout image.png sprites.c" );
+        writeln( "    sprout [options] sprite.png" );
+        writeln( "    sprout [options] sprite.png sprite.c" );
+        writeln( "Options :" );
+        writeln( "    --pixel-minimum-lightness pixel_minimum_lightness" );
+        writeln( "    --sprite-column-count sprite_column_count" );
+        writeln( "    --sprite-row-count sprite_row_count" );
 
         Abort( "Invalid arguments : " ~ argument_array.to!string() );
     }

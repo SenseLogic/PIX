@@ -1,3 +1,3 @@
 #!/bin/sh
 set -x
-../sprout image.png sprites.c
+../sprout sprite.png
