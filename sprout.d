@@ -26,7 +26,7 @@ import core.stdc.stdlib : exit;
 import std.conv : to;
 import std.file : write;
 import std.stdio : writeln;
-import std.string : endsWith, replace, split, startsWith;
+import std.string : endsWith, indexOf, join, replace, split, startsWith;
 
 // -- TYPES
 
@@ -113,7 +113,7 @@ struct IMAGE
         PIXEL
             pixel;
 
-        writeln( "Reading PNG file : ", png_file_path );
+        writeln( "Reading file : ", png_file_path );
 
         true_color_image = readPng( png_file_path ).getAsTrueColorImage();
 
@@ -155,16 +155,19 @@ struct IMAGE
             row_index,
             pixel_index,
             post_column_index,
-            post_row_index;
+            post_row_index,
+            sprite_byte_count,
+            sprite_row_byte_count;
         string
             c_file_text,
+            sprite_byte_text,
             sprite_name;
+        string[]
+            sprite_line_array;
         PIXEL
             pixel;
 
         sprite_name = c_file_path.GetLogicalPath().split( '/' )[ $ - 1 ][ 0 .. $ - 2 ];
-
-        writeln( "Writing C file : ", c_file_path );
 
         c_file_text ~= "uint8_t\n";
 
@@ -180,25 +183,13 @@ struct IMAGE
             {
                 post_column_index = first_column_index + SpriteColumnCount;
 
-                c_file_text ~= "    " ~ sprite_name;
-
-                if ( ColumnCount > SpriteColumnCount
-                     || RowCount > SpriteRowCount )
-                {
-                    c_file_text
-                       ~= "_"
-                          ~ ( first_row_index / SpriteRowCount ).to!string()
-                          ~ "_"
-                          ~ ( first_column_index / SpriteColumnCount ).to!string();
-                }
-
-                c_file_text ~= "[] =\n        {\n";
+                sprite_byte_text = "";
 
                 for ( row_index = first_row_index;
                       row_index < post_row_index;
                       ++row_index )
                 {
-                    c_file_text ~= "            ";
+                    sprite_byte_text ~= "            ";
 
                     for ( column_index = first_column_index;
                           column_index < post_column_index;
@@ -208,11 +199,11 @@ struct IMAGE
                         {
                             if ( column_index == first_column_index )
                             {
-                                c_file_text ~= "0b";
+                                sprite_byte_text ~= "0b";
                             }
                             else
                             {
-                                c_file_text ~= ", 0b";
+                                sprite_byte_text ~= ", 0b";
                             }
                         }
 
@@ -227,26 +218,58 @@ struct IMAGE
                             pixel.Clear();
                         }
 
-                        if ( pixel.GetLightness() < PixelMinimumLightness )
+                        if ( ( pixel.GetLightness() < PixelMinimumLightness ) != InvertOptionIsEnabled )
                         {
-                            c_file_text ~= "0";
+                            sprite_byte_text ~= "0";
                         }
                         else
                         {
-                            c_file_text ~= "1";
+                            sprite_byte_text ~= "1";
                         }
                     }
 
                     if ( row_index < post_row_index - 1 )
                     {
-                        c_file_text ~= ",\n";
+                        sprite_byte_text ~= ",\n";
                     }
                     else
                     {
-                        c_file_text ~= "\n";
+                        sprite_byte_text ~= "\n";
                     }
                 }
 
+                sprite_row_byte_count = ( SpriteColumnCount + 7 ) >> 3;
+                sprite_byte_count = SpriteRowCount * sprite_row_byte_count;
+
+                if ( TrimOptionIsEnabled )
+                {
+                    sprite_line_array = sprite_byte_text.split( '\n' );
+
+                    while ( sprite_line_array.length > 0
+                            && sprite_line_array[ 0 ].startsWith( "            0b" )
+                            && sprite_line_array[ 0 ].indexOf( '1' ) < 0 )
+                    {
+                        sprite_line_array = sprite_line_array[ 1 .. $ ];
+                        sprite_byte_count -= sprite_row_byte_count;
+                    }
+
+                    sprite_byte_text = sprite_line_array.join( '\n' );
+                }
+
+                c_file_text ~= "    " ~ sprite_name;
+
+                if ( ColumnCount > SpriteColumnCount
+                     || RowCount > SpriteRowCount )
+                {
+                    c_file_text
+                       ~= "_"
+                          ~ ( first_row_index / SpriteRowCount ).to!string()
+                          ~ "_"
+                          ~ ( first_column_index / SpriteColumnCount ).to!string();
+                }
+
+                c_file_text ~= "[ " ~ sprite_byte_count.to!string() ~ " ] =\n        {\n";
+                c_file_text ~= sprite_byte_text;
                 c_file_text ~= "        },\n";
             }
         }
@@ -257,6 +280,9 @@ struct IMAGE
 
 // -- VARIABLES
 
+bool
+    InvertOptionIsEnabled,
+    TrimOptionIsEnabled;
 long
     PixelMinimumLightness,
     SpriteColumnCount,
@@ -360,6 +386,8 @@ void main(
     PixelMinimumLightness = 128;
     SpriteColumnCount = 24;
     SpriteRowCount = 21;
+    InvertOptionIsEnabled = false;
+    TrimOptionIsEnabled = false;
 
     while ( argument_array.length >= 1
             && argument_array[ 0 ].startsWith( "--" ) )
@@ -388,6 +416,16 @@ void main(
             SpriteRowCount = argument_array[ 0 ].to!long();
 
             argument_array = argument_array[ 1 .. $ ];
+        }
+        else if ( option == "--invert"
+                  && argument_array.length >= 1 )
+        {
+            InvertOptionIsEnabled = true;
+        }
+        else if ( option == "--trim"
+                  && argument_array.length >= 1 )
+        {
+            TrimOptionIsEnabled = true;
         }
         else
         {
