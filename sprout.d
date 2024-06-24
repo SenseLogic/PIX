@@ -30,9 +30,7 @@ import std.string : endsWith, indexOf, join, replace, split, startsWith;
 
 // -- TYPES
 
-// ~~
-
-struct PIXEL
+struct COLOR
 {
     // -- ATTRIBUTES
 
@@ -61,6 +59,10 @@ struct PIXEL
         return ( ( ( ( 306L * Red + 601L * Green + 117L * Blue ) >> 10 ) * Opacity ) / 255 ).to!ubyte();
     }
 }
+
+// ~~
+
+alias PIXEL = COLOR;
 
 // ~~
 
@@ -144,11 +146,46 @@ struct IMAGE
 
     // ~~
 
+    COLOR[] GetColorArray(
+        )
+    {
+        bool
+            color_is_missing;
+        COLOR[]
+            color_array;
+
+        foreach ( pixel; PixelArray )
+        {
+            color_is_missing = true;
+
+            foreach ( color; color_array )
+            {
+                if ( pixel == color )
+                {
+                    color_is_missing = false;
+
+                    break;
+                }
+            }
+
+            if ( color_is_missing )
+            {
+                color_array ~= pixel;
+            }
+        }
+
+        return color_array;
+    }
+
+    // ~~
+
     void WriteCFile(
         string c_file_path
         )
     {
         long
+            bit_index,
+            color_index,
             column_index,
             first_column_index,
             first_row_index,
@@ -173,13 +210,13 @@ struct IMAGE
 
         for ( first_row_index = 0;
               first_row_index < RowCount;
-              first_row_index += SpriteRowCount )
+              first_row_index += SpriteRowCount * ImageRowStep )
         {
             post_row_index = first_row_index + SpriteRowCount;
 
             for ( first_column_index = 0;
                   first_column_index < ColumnCount;
-                  first_column_index += SpriteColumnCount )
+                  first_column_index += SpriteColumnCount * ImageColumnStep )
             {
                 post_column_index = first_column_index + SpriteColumnCount;
 
@@ -187,15 +224,16 @@ struct IMAGE
 
                 for ( row_index = first_row_index;
                       row_index < post_row_index;
-                      ++row_index )
+                      row_index += ImageRowStep )
                 {
                     sprite_byte_text ~= "            ";
+                    bit_index = 0;
 
                     for ( column_index = first_column_index;
                           column_index < post_column_index;
-                          ++column_index )
+                          column_index += ImageColumnStep )
                     {
-                        if ( ( column_index & 7 ) == 0 )
+                        if ( ( bit_index & 7 ) == 0 )
                         {
                             if ( column_index == first_column_index )
                             {
@@ -211,21 +249,16 @@ struct IMAGE
 
                         if ( pixel_index >= 0 )
                         {
-                            pixel = PixelArray[ pixel_index ];
+                            color_index = PixelArray[ pixel_index ].GetPaletteColorIndex();
                         }
                         else
                         {
-                            pixel.Clear();
+                            color_index = 0;
                         }
 
-                        if ( ( pixel.GetLightness() < PixelMinimumLightness ) != InvertOptionIsEnabled )
-                        {
-                            sprite_byte_text ~= "0";
-                        }
-                        else
-                        {
-                            sprite_byte_text ~= "1";
-                        }
+                        sprite_byte_text ~= color_index.GetBinaryText( ColorBitCount );
+
+                        bit_index += ColorBitCount;
                     }
 
                     if ( row_index < post_row_index - 1 )
@@ -241,7 +274,7 @@ struct IMAGE
                 sprite_row_byte_count = ( SpriteColumnCount + 7 ) >> 3;
                 sprite_byte_count = SpriteRowCount * sprite_row_byte_count;
 
-                if ( TrimOptionIsEnabled )
+                if ( TrimBlankRowsOptionIsEnabled )
                 {
                     sprite_line_array = sprite_byte_text.split( '\n' );
 
@@ -281,12 +314,17 @@ struct IMAGE
 // -- VARIABLES
 
 bool
-    InvertOptionIsEnabled,
-    TrimOptionIsEnabled;
+    InvertLightnessOptionIsEnabled,
+    TrimBlankRowsOptionIsEnabled;
 long
-    PixelMinimumLightness,
+    ImageColumnStep,
+    ImageRowStep,
+    ColorBitCount,
+    ColorMinimumLightness,
     SpriteColumnCount,
     SpriteRowCount;
+COLOR[]
+    PaletteColorArray;
 
 // -- FUNCTIONS
 
@@ -319,6 +357,26 @@ void Abort(
     PrintError( exception.msg );
 
     exit( -1 );
+}
+
+// ~~
+
+string GetBinaryText(
+    ulong natural,
+    ulong minimum_character_count
+    )
+{
+    string
+        binary_text;
+
+    binary_text = natural.to!string( 2 );
+
+    while ( binary_text.length < minimum_character_count )
+    {
+        binary_text = '0' ~ binary_text;
+    }
+
+    return binary_text;
 }
 
 // ~~
@@ -360,6 +418,49 @@ void WriteText(
 
 // ~~
 
+void ReadColorPalette(
+    string png_file_path
+    )
+{
+    IMAGE
+        image;
+
+    image.ReadPngFile( png_file_path );
+    PaletteColorArray = image.GetColorArray();
+    ColorBitCount = 1;
+
+    while ( ( 1 << ColorBitCount ) < PaletteColorArray.length )
+    {
+        ++ColorBitCount;
+    }
+}
+
+// ~~
+
+long GetPaletteColorIndex(
+    COLOR color
+    )
+{
+    if ( PaletteColorArray.length >= 2 )
+    {
+        foreach ( color_index, palette_color; PaletteColorArray )
+        {
+            if ( color == palette_color )
+            {
+                return color_index;
+            }
+        }
+
+        return 0;
+    }
+    else
+    {
+        return ( ( color.GetLightness() < ColorMinimumLightness ) != InvertLightnessOptionIsEnabled );
+    }
+}
+
+// ~~
+
 void ConvertImage(
     string png_file_path,
     string c_file_path
@@ -383,11 +484,14 @@ void main(
 
     argument_array = argument_array[ 1 .. $ ];
 
-    PixelMinimumLightness = 128;
+    ColorBitCount = 1;
+    ImageColumnStep = 1;
+    ImageRowStep = 1;
+    ColorMinimumLightness = 128;
     SpriteColumnCount = 24;
     SpriteRowCount = 21;
-    InvertOptionIsEnabled = false;
-    TrimOptionIsEnabled = false;
+    InvertLightnessOptionIsEnabled = false;
+    TrimBlankRowsOptionIsEnabled = false;
 
     while ( argument_array.length >= 1
             && argument_array[ 0 ].startsWith( "--" ) )
@@ -396,12 +500,38 @@ void main(
 
         argument_array = argument_array[ 1 .. $ ];
 
-        if ( option == "--pixel-minimum-lightness"
+        if ( option == "--color-palette"
              && argument_array.length >= 1 )
         {
-            PixelMinimumLightness = argument_array[ 0 ].to!long();
+            ReadColorPalette( argument_array[ 0 ] );
 
             argument_array = argument_array[ 1 .. $ ];
+        }
+        else if ( option == "--image-column-step"
+                  && argument_array.length >= 1 )
+        {
+            ImageColumnStep = argument_array[ 0 ].to!long();
+
+            argument_array = argument_array[ 1 .. $ ];
+        }
+        else if ( option == "--image-row-step"
+                  && argument_array.length >= 1 )
+        {
+            ImageRowStep = argument_array[ 0 ].to!long();
+
+            argument_array = argument_array[ 1 .. $ ];
+        }
+        else if ( option == "--color-minimum-lightness"
+                  && argument_array.length >= 1 )
+        {
+            ColorMinimumLightness = argument_array[ 0 ].to!long();
+
+            argument_array = argument_array[ 1 .. $ ];
+        }
+        else if ( option == "--invert-lightness"
+                  && argument_array.length >= 1 )
+        {
+            InvertLightnessOptionIsEnabled = true;
         }
         else if ( option == "--sprite-column-count"
                   && argument_array.length >= 1 )
@@ -417,15 +547,10 @@ void main(
 
             argument_array = argument_array[ 1 .. $ ];
         }
-        else if ( option == "--invert"
+        else if ( option == "--trim-blank-rows"
                   && argument_array.length >= 1 )
         {
-            InvertOptionIsEnabled = true;
-        }
-        else if ( option == "--trim"
-                  && argument_array.length >= 1 )
-        {
-            TrimOptionIsEnabled = true;
+            TrimBlankRowsOptionIsEnabled = true;
         }
         else
         {
@@ -450,9 +575,9 @@ void main(
         writeln( "    sprout [options] sprite.png" );
         writeln( "    sprout [options] sprite.png sprite.c" );
         writeln( "Options :" );
-        writeln( "    --pixel-minimum-lightness pixel_minimum_lightness" );
-        writeln( "    --sprite-column-count sprite_column_count" );
-        writeln( "    --sprite-row-count sprite_row_count" );
+        writeln( "    --color-minimum-lightness 128" );
+        writeln( "    --sprite-column-count 24" );
+        writeln( "    --sprite-row-count 21" );
 
         Abort( "Invalid arguments : " ~ argument_array.to!string() );
     }

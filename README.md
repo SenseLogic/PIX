@@ -23,11 +23,14 @@ sprout [options] sprite.png [sprite.c]
 ### Options
 
 ```bash
---pixel-minimum-lightness pixel_minimum_lightness
---sprite-column-count sprite_column_count
---sprite-row-count sprite_row_count
---invert
---trim
+--color-palette palette.png
+--image-column-count 1
+--image-row-count 1
+--pixel-minimum-lightness 128
+--invert-lightness
+--sprite-column-count 24
+--sprite-row-count 21
+--trim-blank-rows
 ```
 
 ### Examples
@@ -41,6 +44,10 @@ sprout sprite.png sprite.c
 ```
 
 ```bash
+sprout --palette palette.png sprite.png sprite.c
+```
+
+```bash
 sprout --pixel-minimum-lightness 128 sprite.png
 ```
 
@@ -49,7 +56,7 @@ sprout --pixel-minimum-lightness 128 --sprite-column-count 24 --sprite-row-count
 ```
 
 ```bash
-sprout --pixel-minimum-lightness 128 --sprite-column-count 24 --sprite-row-count 21 --invert --trim sprite.png sprite.c
+sprout --pixel-minimum-lightness 128 --sprite-column-count 24 --sprite-row-count 21 --invert-lightness --trim sprite.png sprite.c
 ```
 
 ## Dependencies
