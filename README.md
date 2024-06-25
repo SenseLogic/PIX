@@ -17,46 +17,41 @@ dmd -m64 sprout.d color.d png.d
 ## Command line
 
 ```bash
-sprout [options] sprite.png [sprite.c]
+sprout [options]
 ```
 
 ### Options
 
 ```bash
---color-palette palette.png
---image-column-count 1
---image-row-count 1
---pixel-minimum-lightness 128
---invert-lightness
---sprite-column-count 24
---sprite-row-count 21
---trim-blank-rows
+--read-palette-png palette.png
+--read-png sprite.png column_step row_step
+--binarize threshold
+--invert
+--tile character_column_count character_row_count tile_column_count tile_row_count
+--trim
+--write-c sprite.c sprite_column_count sprite_row_count
 ```
 
 ### Examples
 
 ```bash
-sprout sprite.png
+sprout --read-png sprite.png 1 1 --binarize 128 --write-c sprite.c 24 21
 ```
 
 ```bash
-sprout sprite.png sprite.c
+sprout --read-png sprite.png 1 1 --binarize 128 --invert --write-c inverted_sprite.c 24 21
 ```
 
 ```bash
-sprout --palette palette.png sprite.png sprite.c
+sprout --read-png sprite.png 1 1 --binarize 128 --trim --write-c trimmed_sprite.c 24 21
 ```
 
 ```bash
-sprout --pixel-minimum-lightness 128 sprite.png
+sprout --read-png four_color_sprite.png 2 1 --read-palette-png four_color_palette.png --write-c four_color_sprite.c 24 21
 ```
 
 ```bash
-sprout --pixel-minimum-lightness 128 --sprite-column-count 24 --sprite-row-count 21 sprite.png sprite.c
-```
-
-```bash
-sprout --pixel-minimum-lightness 128 --sprite-column-count 24 --sprite-row-count 21 --invert-lightness --trim sprite.png sprite.c
+sprout --read-png font.png 1 1 --binarize 128 --tile 4 8 --write-png tiled_font_1.png --tile -2 -4 --write-png tiled_font_2.png --write-flat-c flat_font.c 8 4
 ```
 
 ## Dependencies
