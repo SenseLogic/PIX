@@ -27,7 +27,8 @@ sprout [options]
 --read-png sprite.png column_step row_step
 --binarize threshold
 --invert
---tile character_column_count character_row_count tile_column_count tile_row_count
+--tile tile_column_count tile_row_count
+--flatten column_count
 --trim
 --write-c sprite.c sprite_column_count sprite_row_count
 ```
@@ -51,7 +52,7 @@ sprout --read-png four_color_sprite.png 2 1 --read-palette-png four_color_palett
 ```
 
 ```bash
-sprout --read-png font.png 1 1 --binarize 128 --tile 4 8 --write-png tiled_font_1.png --tile -2 -4 --write-png tiled_font_2.png --write-flat-c flat_font.c 8 4
+sprout --read-png font.png 1 1 --binarize 128 --tile 4 8 --write-png tiled_font_1.png --tile -2 -4 --write-png tiled_font_2.png --flatten 32 --write-png flat_font.png --write-c font.c 0 0
 ```
 
 ## Dependencies

@@ -224,8 +224,7 @@ struct IMAGE
     void WriteCFile(
         string c_file_path,
         long sprite_column_count,
-        long sprite_row_count,
-        bool image_is_flattened
+        long sprite_row_count
         )
     {
         bool
@@ -254,146 +253,113 @@ struct IMAGE
         sprite_name = c_file_path.GetLogicalPath().split( '/' )[ $ - 1 ][ 0 .. $ - 2 ];
         c_file_text ~= "uint8_t\n";
 
-        if ( image_is_flattened )
+        if ( sprite_column_count == 0 )
         {
-            sprite_byte_count = ( PixelArray.length + 7 ) >> 3;
-
-            c_file_text
-                ~= "    " ~ sprite_name
-                   ~ "[ " ~ sprite_byte_count.to!string() ~ " ] =\n        {\n";
-
-            sprite_byte_text = "";
-            bit_index = 0;
-
-            row_index = 0;
-
-            for ( pixel_index = 0;
-                  pixel_index < PixelArray.length;
-                  ++pixel_index )
-            {
-                if ( ( bit_index & 7 ) == 0 )
-                {
-                    if ( ( row_index % sprite_row_count ) == 0 )
-                    {
-                        sprite_byte_text ~= ",\n            0b";
-                    }
-                    else
-                    {
-                        sprite_byte_text ~= ", 0b";
-                    }
-
-                    ++row_index;
-                }
-
-                color_index = PixelArray[ pixel_index ].GetColorIndex();
-                sprite_byte_text ~= color_index.GetBinaryText( ColorBitCount );
-                bit_index += ColorBitCount;
-            }
-
-            c_file_text
-                ~= sprite_byte_text[ 2 .. $ ]
-                   ~ "\n        },\n";
+            sprite_column_count = ColumnCount;
         }
-        else
+
+        if ( sprite_row_count == 0 )
         {
-            for ( first_row_index = 0;
-                  first_row_index < RowCount;
-                  first_row_index += sprite_row_count * RowStep )
+            sprite_row_count = PixelArray.length / sprite_column_count;
+        }
+
+        for ( first_row_index = 0;
+              first_row_index < RowCount;
+              first_row_index += sprite_row_count * RowStep )
+        {
+            post_row_index = first_row_index + sprite_row_count;
+
+            for ( first_column_index = 0;
+                  first_column_index < ColumnCount;
+                  first_column_index += sprite_column_count * ColumnStep )
             {
-                post_row_index = first_row_index + sprite_row_count;
+                post_column_index = first_column_index + sprite_column_count;
 
-                for ( first_column_index = 0;
-                      first_column_index < ColumnCount;
-                      first_column_index += sprite_column_count * ColumnStep )
+                sprite_byte_text = "";
+
+                for ( row_index = first_row_index;
+                      row_index < post_row_index;
+                      row_index += RowStep )
                 {
-                    post_column_index = first_column_index + sprite_column_count;
+                    sprite_byte_text ~= "            ";
+                    bit_index = 0;
 
-                    sprite_byte_text = "";
-
-                    for ( row_index = first_row_index;
-                          row_index < post_row_index;
-                          row_index += RowStep )
+                    for ( column_index = first_column_index;
+                          column_index < post_column_index;
+                          column_index += ColumnStep )
                     {
-                        sprite_byte_text ~= "            ";
-                        bit_index = 0;
-
-                        for ( column_index = first_column_index;
-                              column_index < post_column_index;
-                              column_index += ColumnStep )
+                        if ( ( bit_index & 7 ) == 0 )
                         {
-                            if ( ( bit_index & 7 ) == 0 )
+                            if ( column_index == first_column_index )
                             {
-                                if ( column_index == first_column_index )
-                                {
-                                    sprite_byte_text ~= "0b";
-                                }
-                                else
-                                {
-                                    sprite_byte_text ~= ", 0b";
-                                }
-                            }
-
-                            pixel_index = GetPixelIndex( column_index, row_index );
-
-                            if ( pixel_index >= 0 )
-                            {
-                                color_index = PixelArray[ pixel_index ].GetColorIndex();
+                                sprite_byte_text ~= "0b";
                             }
                             else
                             {
-                                color_index = 0;
+                                sprite_byte_text ~= ", 0b";
                             }
-
-                            sprite_byte_text ~= color_index.GetBinaryText( ColorBitCount );
-
-                            bit_index += ColorBitCount;
                         }
 
-                        if ( row_index < post_row_index - 1 )
+                        pixel_index = GetPixelIndex( column_index, row_index );
+
+                        if ( pixel_index >= 0 )
                         {
-                            sprite_byte_text ~= ",\n";
+                            color_index = PixelArray[ pixel_index ].GetColorIndex();
                         }
                         else
                         {
-                            sprite_byte_text ~= "\n";
-                        }
-                    }
-
-                    sprite_row_byte_count = ( sprite_column_count + 7 ) >> 3;
-                    sprite_byte_count = sprite_row_count * sprite_row_byte_count;
-
-                    if ( TrimOptionIsEnabled )
-                    {
-                        sprite_line_array = sprite_byte_text.split( '\n' );
-
-                        while ( sprite_line_array.length > 0
-                                && sprite_line_array[ 0 ].startsWith( "            0b" )
-                                && sprite_line_array[ 0 ].indexOf( '1' ) < 0 )
-                        {
-                            sprite_line_array = sprite_line_array[ 1 .. $ ];
-                            sprite_byte_count -= sprite_row_byte_count;
+                            color_index = 0;
                         }
 
-                        sprite_byte_text = sprite_line_array.join( '\n' );
+                        sprite_byte_text ~= color_index.GetBinaryText( ColorBitCount );
+
+                        bit_index += ColorBitCount;
                     }
 
-                    c_file_text ~= "    " ~ sprite_name;
-
-                    if ( ColumnCount > sprite_column_count
-                         || RowCount > sprite_row_count )
+                    if ( row_index < post_row_index - 1 )
                     {
-                        c_file_text
-                           ~= "_"
-                              ~ ( first_row_index / sprite_row_count ).to!string()
-                              ~ "_"
-                              ~ ( first_column_index / sprite_column_count ).to!string();
+                        sprite_byte_text ~= ",\n";
                     }
-
-                    c_file_text
-                        ~= "[ " ~ sprite_byte_count.to!string() ~ " ] =\n        {\n"
-                           ~ sprite_byte_text
-                           ~ "        },\n";
+                    else
+                    {
+                        sprite_byte_text ~= "\n";
+                    }
                 }
+
+                sprite_row_byte_count = ( sprite_column_count + 7 ) >> 3;
+                sprite_byte_count = sprite_row_count * sprite_row_byte_count;
+
+                if ( TrimOptionIsEnabled )
+                {
+                    sprite_line_array = sprite_byte_text.split( '\n' );
+
+                    while ( sprite_line_array.length > 0
+                            && sprite_line_array[ 0 ].startsWith( "            0b" )
+                            && sprite_line_array[ 0 ].indexOf( '1' ) < 0 )
+                    {
+                        sprite_line_array = sprite_line_array[ 1 .. $ ];
+                        sprite_byte_count -= sprite_row_byte_count;
+                    }
+
+                    sprite_byte_text = sprite_line_array.join( '\n' );
+                }
+
+                c_file_text ~= "    " ~ sprite_name;
+
+                if ( ColumnCount > sprite_column_count
+                     || RowCount > sprite_row_count )
+                {
+                    c_file_text
+                       ~= "_"
+                          ~ ( first_row_index / sprite_row_count ).to!string()
+                          ~ "_"
+                          ~ ( first_column_index / sprite_column_count ).to!string();
+                }
+
+                c_file_text
+                    ~= "[ " ~ sprite_byte_count.to!string() ~ " ] =\n        {\n"
+                       ~ sprite_byte_text
+                       ~ "        },\n";
             }
         }
 
@@ -559,6 +525,16 @@ struct IMAGE
         ColumnCount = tile_column_count;
         RowCount = pixel_array.length / tile_column_count;
         PixelArray = pixel_array;
+    }
+
+    // ~~
+
+    void Flatten(
+        long column_count
+        )
+    {
+        ColumnCount = column_count;
+        RowCount = PixelArray.length / column_count;
     }
 }
 
@@ -745,6 +721,15 @@ void TileImage(
 
 // ~~
 
+void FlattenImage(
+    long column_count
+    )
+{
+    Image.Flatten( column_count );
+}
+
+// ~~
+
 void WritePngFile(
     string png_file_path
     )
@@ -757,15 +742,13 @@ void WritePngFile(
 void WriteCFile(
     string c_file_path,
     long sprite_column_count,
-    long sprite_row_count,
-        bool image_is_flattened
+    long sprite_row_count
     )
 {
     Image.WriteCFile(
         c_file_path,
         sprite_column_count,
-        sprite_row_count,
-        image_is_flattened
+        sprite_row_count
         );
 }
 
@@ -834,6 +817,15 @@ void main(
 
             argument_array = argument_array[ 2 .. $ ];
         }
+        else if ( option == "--flatten"
+                  && argument_array.length >= 1 )
+        {
+            FlattenImage(
+                argument_array[ 0 ].to!long()
+                );
+
+            argument_array = argument_array[ 1 .. $ ];
+        }
         else if ( option == "--trim" )
         {
             TrimOptionIsEnabled = true;
@@ -851,20 +843,7 @@ void main(
             WriteCFile(
                 argument_array[ 0 ],
                 argument_array[ 1 ].to!long(),
-                argument_array[ 2 ].to!long(),
-                false
-                );
-
-            argument_array = argument_array[ 3 .. $ ];
-        }
-        else if ( option == "--write-flat-c"
-                  && argument_array.length >= 3 )
-        {
-            WriteCFile(
-                argument_array[ 0 ],
-                argument_array[ 1 ].to!long(),
-                argument_array[ 2 ].to!long(),
-                true
+                argument_array[ 2 ].to!long()
                 );
 
             argument_array = argument_array[ 3 .. $ ];
@@ -886,6 +865,7 @@ void main(
         writeln( "    --binarize threshold" );
         writeln( "    --invert" );
         writeln( "    --tile tile_column_count tile_row_count" );
+        writeln( "    --flatten column_count" );
         writeln( "    --trim" );
         writeln( "    --write-c sprite.c sprite_column_count sprite_row_count" );
 
