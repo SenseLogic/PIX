@@ -1,6 +1,6 @@
-![](https://github.com/senselogic/SPROUT/blob/master/LOGO/sprout.png)
+![](https://github.com/senselogic/PIX/blob/master/LOGO/pix.png)
 
-# Sprout
+# Pix
 
 Sprite converter.
 
@@ -11,13 +11,13 @@ Install the [DMD 2 compiler](https://dlang.org/download.html) (using the MinGW s
 Build the executable with the following command line :
 
 ```bash
-dmd -m64 sprout.d color.d png.d
+dmd -m64 pix.d color.d png.d
 ```
 
 ## Command line
 
 ```bash
-sprout [options]
+pix [options]
 ```
 
 ### Options
@@ -36,23 +36,23 @@ sprout [options]
 ### Examples
 
 ```bash
-sprout --read-png sprite.png 1 1 --binarize 128 --write-c sprite.c 24 21
+pix --read-png sprite.png 1 1 --binarize 128 --write-c sprite.c 24 21
 ```
 
 ```bash
-sprout --read-png sprite.png 1 1 --binarize 128 --invert --write-c inverted_sprite.c 24 21
+pix --read-png sprite.png 1 1 --binarize 128 --invert --write-c inverted_sprite.c 24 21
 ```
 
 ```bash
-sprout --read-png sprite.png 1 1 --binarize 128 --trim --write-c trimmed_sprite.c 24 21
+pix --read-png sprite.png 1 1 --binarize 128 --trim --write-c trimmed_sprite.c 24 21
 ```
 
 ```bash
-sprout --read-png four_color_sprite.png 2 1 --read-palette-png four_color_palette.png --write-c four_color_sprite.c 24 21
+pix --read-png four_color_sprite.png 2 1 --read-palette-png four_color_palette.png --write-c four_color_sprite.c 24 21
 ```
 
 ```bash
-sprout --read-png font.png 1 1 --binarize 128 --tile 4 8 --write-png tiled_font_1.png --tile -2 -4 --write-png tiled_font_2.png --flatten 32 --write-png flat_font.png --write-c font.c 0 0
+pix --read-png font.png 1 1 --binarize 128 --tile 4 8 --write-png tiled_font_1.png --tile -2 -4 --write-png tiled_font_2.png --flatten 32 --write-png flat_font.png --write-c font.c 0 0
 ```
 
 ## Dependencies
